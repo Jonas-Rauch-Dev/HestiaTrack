@@ -1,6 +1,6 @@
 name: "HestiaTracker"
 services:
-  mosquitto:
+  hestia-mosquitto:
     image: eclipse-mosquitto:2.0.20
     hostname: hestia-mosquitto
     container_name: hestia-mosquitto
@@ -15,7 +15,7 @@ services:
     networks:
       - backend
 
-  mongodb:
+  hestia-mongodb:
     image: mongo:8.0.4-noble
     hostname: hestia-mongodb
     container_name: hestia-mongodb
@@ -30,7 +30,7 @@ services:
     networks:
       - backend
 
-  kafka:
+  hestia-kafka:
     image: apache/kafka:3.9.0
     hostname: hestia-kafka
     container_name: hestia-kafka
@@ -53,10 +53,27 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
       KAFKA_LOG_RETENTION_HOURS: 24
       CLUSTER_ID: "HestiaTracker-0"
+      KAFKA_JMX_PORT: 9997
+      KAFKA_JMX_OPTS: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka0 -Dcom.sun.management.jmxremote.rmi.port=9997
     networks:
       - backend
     volumes:
       - kafka_log:/var/lib/kafka/data
+
+  hestia-kafka-ui:
+    container_name: hestia-kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8080:8080
+    depends_on:
+      - hestia-kafka
+    environment:
+      DYNAMIC_CONFIG_ENABLED: "true"
+      KAFKA_CLUSTERS_0_NAME: HestiaTracker-0
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: hestia-kafka:9092
+      KAFKA_CLUSTERS_0_METRICS_PORT: 9997
+    networks:
+      - backend
 
 networks:
   backend:
