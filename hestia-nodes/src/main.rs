@@ -1,10 +1,14 @@
 use std::{thread::sleep, time::Duration};
 
-use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::{prelude::Peripherals, temp_sensor}, mqtt::client::{EspMqttClient, MqttClientConfiguration, QoS}, wifi::{AccessPointInfo, EspWifi}};
+use accesspoint_strengths::get_accesspoint_strengths;
+use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals, mqtt::client::QoS};
 use anyhow::Result;
+use mqtt::MQTTClient;
 use wifi::wifi;
 
 mod wifi;
+mod mqtt;
+mod accesspoint_strengths;
 
 #[toml_cfg::toml_config]
 struct Config {
@@ -34,7 +38,7 @@ fn main() -> Result<()>{
 
     let app_config = CONFIG;
 
-    // Create wifi
+    // Start and Connect wifi
     let mut wifi = wifi(
         app_config.wifi_ssid,
         app_config.wifi_psk,
@@ -42,20 +46,17 @@ fn main() -> Result<()>{
     )?;
 
     // Create mqtt client
-    let mut mqtt_client_config = MqttClientConfiguration::default();
-    mqtt_client_config.username = Some(app_config.mqtt_user);
-    mqtt_client_config.password = Some(app_config.mqtt_pass);
-
-    let mut mqtt_client = EspMqttClient::new_cb(app_config.mqtt_host, &mqtt_client_config, move |message_event| {
-        log::info!("Message Event: {:?}", message_event.payload())
-    })?;
+    let mut mqtt_client = MQTTClient::new(
+        app_config.mqtt_host, 
+        app_config.mqtt_user, 
+        app_config.mqtt_pass
+    )?;
 
     // Main programm loop
     loop {
         match get_accesspoint_strengths(&mut wifi) {
             Ok(accesspoint_strengths_string) => {
-                enqueue_mqtt_message(
-                    &mut mqtt_client,
+                mqtt_client.enqueue_mqtt_message(
                     "test/topic",
                     QoS::AtMostOnce,
                     true,
@@ -67,49 +68,5 @@ fn main() -> Result<()>{
             }
         }
         sleep(Duration::from_secs(5));
-    }
-}
-
-#[derive(serde::Serialize)]
-struct AccessPointSignalStrength {
-    ssid: heapless::String<32>,
-    signal_strength: i8,
-}
-
-impl AccessPointSignalStrength {
-    fn from(acces_point_info: AccessPointInfo) -> Self {
-        Self {
-            ssid: acces_point_info.ssid,
-            signal_strength: acces_point_info.signal_strength
-        }
-    }
-}
-
-fn get_accesspoint_strengths(wifi: &mut Box<EspWifi<'static>>) -> Result<String> {
-    let accesspoint_infos = wifi.scan()?;
-
-    let accesspoint_strengths: Vec<AccessPointSignalStrength> = accesspoint_infos
-        .into_iter()
-        .map(AccessPointSignalStrength::from)
-        .collect();
-    
-    let serialized_accesspoint_strengths = serde_json::to_string(&accesspoint_strengths)?;
-
-    Ok(serialized_accesspoint_strengths)
-}
-
-fn enqueue_mqtt_message(
-    mqtt_client: &mut EspMqttClient<'static>,
-    topic: &str,
-    qos: QoS,
-    retain: bool,
-    payload: &[u8]
-) {
-    if let Err(e) = mqtt_client.enqueue(topic, qos, retain, payload) {
-        log::error!(
-            "ERROR: Failed to enqueue mqtt message into topic '{}' with error: {}",
-            topic,
-            e
-        );
     }
 }
