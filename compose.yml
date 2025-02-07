@@ -1,0 +1,69 @@
+name: "HestiaTracker"
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    hostname: hestia-mosquitto
+    container_name: hestia-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883" # MQTT Port
+      - "9001:9001" # Websocket Port (optional)
+    volumes:
+      - ./configs/mosquitto/config:/mosquitto/config:ro
+      - mosquitto_data:/mosquitto/data:rw
+      - mosquitto_log:/mosquitto/log:rw
+    networks:
+      - backend
+
+  mongodb:
+    image: mongo:8.0.4-noble
+    hostname: hestia-mongodb
+    container_name: hestia-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - backend
+
+  kafka:
+    image: apache/kafka:3.9.0
+    hostname: hestia-kafka
+    container_name: hestia-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_KRAFT_MODE: "true" # Enable Kafka KRaft mode
+      KAFKA_PROCESS_ROLES: broker,controller # operate in combined mode
+      KAFKA_NODE_ID: 1 # Kafka instance id for KRaft mode (must be unique for every node)
+      KAFKA_LISTENERS: BROKER://hestia-kafka:9092,CONTROLLER://hestia-kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@hestia-kafka:9093 # {id}@{host}:{port},{id}@{host}:{port} (must include all controller instances and no brokers)
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: BROKER://hestia-kafka:9092
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+      KAFKA_LOG_RETENTION_HOURS: 24
+      CLUSTER_ID: "HestiaTracker-0"
+    networks:
+      - backend
+    volumes:
+      - kafka_log:/var/lib/kafka/data
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  mosquitto_data:
+  mosquitto_log:
+  kafka_log:
