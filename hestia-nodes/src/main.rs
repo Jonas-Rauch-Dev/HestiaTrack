@@ -1,9 +1,9 @@
 use std::{thread::sleep, time::Duration};
 
 use accesspoint_strengths::get_accesspoint_strengths;
-use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals, mqtt::client::QoS};
+use esp_idf_svc::{eventloop::EspSystemEventLoop, hal::prelude::Peripherals};
 use anyhow::Result;
-use mqtt::MQTTClient;
+use mqtt::{MQTTClient, Topic};
 use wifi::wifi;
 
 mod wifi;
@@ -22,6 +22,8 @@ struct Config {
     mqtt_pass: &'static str,
     #[default("")]
     mqtt_host: &'static str,
+    #[default("")]
+    client_id: &'static str,
 }
 
 fn main() -> Result<()>{
@@ -49,7 +51,8 @@ fn main() -> Result<()>{
     let mut mqtt_client = MQTTClient::new(
         app_config.mqtt_host, 
         app_config.mqtt_user, 
-        app_config.mqtt_pass
+        app_config.mqtt_pass,
+        app_config.client_id,
     )?;
 
     // Main programm loop
@@ -57,9 +60,7 @@ fn main() -> Result<()>{
         match get_accesspoint_strengths(&mut wifi) {
             Ok(accesspoint_strengths_string) => {
                 mqtt_client.enqueue_mqtt_message(
-                    "test/topic",
-                    QoS::AtMostOnce,
-                    true,
+                    Topic::AccesspointStrengths,
                     accesspoint_strengths_string.as_bytes()
                 );
             },
