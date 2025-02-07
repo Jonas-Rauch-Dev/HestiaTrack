@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use esp_idf_svc::mqtt::client::{EspMqttClient, MqttClientConfiguration, QoS};
 use anyhow::Result;
 
@@ -18,7 +16,6 @@ impl MQTTClient {
         let mut mqtt_client_config = MqttClientConfiguration::default();
         mqtt_client_config.username = Some(mqtt_user);
         mqtt_client_config.password = Some(mqtt_pass);
-        mqtt_client_config.keep_alive_interval = Some(Duration::from_secs(5));
         mqtt_client_config.client_id = Some(client_id);
 
         let mqtt_client = EspMqttClient::new_cb(
